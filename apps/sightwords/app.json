@@ -1,0 +1,6 @@
+{
+  "title": "Word Garden",
+  "icon": "🌷",
+  "color": "#4cb85c",
+  "files": ["app.css", "app.js", "srs.js", "audio.js"]
+}

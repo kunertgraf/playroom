@@ -35,12 +35,18 @@ apps (games, stories, tools). Sister project of `../mathcraft` (same shell, sepa
 - Pushing to `main` deploys automatically (about a minute). The iPad picks up changes on its next online launch.
 
 ## Apps
-- None yet: this hub starts empty and gets its own fresh set of apps (for a 5-year-old: big touch targets,
-  little or no reading, audio/visual feedback).
+Apps here are for a 5-year-old: big touch targets, little or no reading, audio/visual feedback.
+- `apps/sightwords/` — **Word Garden**, Listen & Tap sight words. The iPad says a word; she taps it among 2–4 cards
+  (2 while learning, look-alike distractors once solid). Anki-style scheduling in `srs.js` (pure, Node-tested):
+  learning steps → review intervals × ease, slow answers = hard, misses lapse back to learning; a capped number of
+  new words per day. Each word is a plant that grows with its interval. Grown-up panel (hold ⚙ 3 s): edit/reorder
+  the word list, record your own voice per word (IndexedDB, falls back to the iPad's speech voice), progress table.
+  `audio.js` handles speech, recordings and sound effects. `?test` exposes `window.__words` (`setDay(offset)` time-travels).
 - `apps/demo/` — minimal example of the app contract (not listed in `apps.json`).
 
 ## Commands
 - Run locally: `python3 -m http.server 8932 --bind 127.0.0.1`, then open http://127.0.0.1:8932/
+- Unit tests (Node 22+, no deps): `node --test`
 - Regenerate icons: `python3 scripts/make_icons.py`
 - After changing the shell file list in `sw.js`, bump `CACHE` there. Bump `version` in `apps.json` on releases.
 
@@ -49,4 +55,5 @@ apps (games, stories, tools). Sister project of `../mathcraft` (same shell, sepa
   not `apps.json`. Rename in all three places.
 - **Never load anything from another site** (fonts, CDNs, analytics, external links). The iPad may use a Screen Time
   "Only Allowed Websites" allowlist containing just the hub's address, so external resources would silently fail.
+- The hub iframe allows `microphone` (Word Garden recordings).
 - Grown-up settings open by holding the bottom-right gear for 3 seconds.

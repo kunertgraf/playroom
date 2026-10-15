@@ -342,8 +342,9 @@ async function renderPanel(msg = '') {
       <section class="voice-test">
         <h3>iPad voice</h3>
         <p class="help">Used for any word you haven't recorded. For more natural voices, download one on this iPad:
-          Settings → Accessibility → Spoken Content → Voices → English, then pick a voice marked
-          <b>Enhanced</b> or <b>Premium</b> (e.g. Ava, Zoe, Evan). Reopen Word Garden and it will appear here.</p>
+          in Settings → Accessibility, open <b>Read &amp; Speak</b> (called <b>Spoken Content</b> on older iPads) → Voices → English,
+          or search Settings for "Voices". Pick a voice marked <b>Enhanced</b> or <b>Premium</b> (e.g. Ava, Zoe, Evan).
+          Reopen Word Garden and it will appear here.</p>
         <div class="voice-row">
           <select id="voice-pick">${voiceOptions()}</select>
           <label>Speed <input id="voice-rate" type="range" min="0.6" max="1.1" step="0.05" value="${setting('rate', 0.85)}"></label>

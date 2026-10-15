@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Star Tapper</title>
+  <link rel="stylesheet" href="../../shared/base.css">
+  <style>
+    body { display: grid; place-items: center; text-align: center; }
+    #star { font-size: 10rem; transition: transform 0.12s; }
+    #star:active { transform: scale(0.85); }
+    p { font-size: 2rem; font-weight: 800; }
+  </style>
+</head>
+<body>
+  <!-- Demo app: shows the app contract (shared CSS, shared store, optional stars). -->
+  <main>
+    <button id="star" aria-label="Tap for a star">⭐</button>
+    <p>Stars: <span id="count">0</span></p>
+  </main>
+  <script type="module">
+    import { store } from '../../shared/store.js';
+    const me = store.forApp('demo');
+    const count = document.getElementById('count');
+    count.textContent = me.stars();
+    document.getElementById('star').addEventListener('click', () => {
+      count.textContent = me.addStars(1);
+    });
+  </script>
+</body>
+</html>

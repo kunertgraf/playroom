@@ -1,0 +1,41 @@
+/* Shared touch-first baseline for the hub and every app. */
+:root {
+  --bg: #2b2d5b;
+  --bg-2: #3b3e7a;
+  --ink: #ffffff;
+  --ink-soft: #c9cbf2;
+  --accent: #ffcf3f;
+  --good: #4cd38a;
+  --bad: #ff6b6b;
+  --radius: 28px;
+  --font: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  /* No accidental zoom, text selection, long-press menus or rubber-banding. */
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+input, textarea { -webkit-user-select: text; user-select: text; }
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: 0;
+  background: none;
+}
+
+[hidden] { display: none !important; }

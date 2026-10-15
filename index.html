@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Playroom</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#2b2d5b">
+  <!-- iOS home-screen app behaviour -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Playroom">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="shared/base.css">
+  <link rel="stylesheet" href="hub.css">
+</head>
+<body>
+  <main id="hub">
+    <header class="hub-header">
+      <h1 id="greeting">Let's play!</h1>
+      <div id="star-pill" class="star-total" hidden aria-label="Total stars"><span class="star">★</span> <span id="star-total">0</span></div>
+    </header>
+
+    <section id="app-grid" class="app-grid" aria-label="Apps"></section>
+    <p id="empty" class="empty" hidden>Nothing here yet!</p>
+
+    <!-- Hold for 3 seconds to open parent settings -->
+    <button id="parent-btn" class="parent-btn" aria-label="Grown-ups: hold to open settings">
+      <svg viewBox="0 0 36 36" aria-hidden="true"><circle class="ring-bg" cx="18" cy="18" r="16"/><circle id="hold-ring" class="ring" cx="18" cy="18" r="16"/></svg>
+      <span>⚙︎</span>
+    </button>
+  </main>
+
+  <!-- Player: apps load in a full-screen iframe so the hub always owns "home" -->
+  <div id="player" class="player" hidden>
+    <iframe id="app-frame" title="App" allow="autoplay; fullscreen"></iframe>
+    <button id="home-btn" class="home-btn" aria-label="Back home">⌂</button>
+  </div>
+
+  <!-- Parent settings -->
+  <dialog id="settings" class="settings">
+    <form method="dialog">
+      <h2>Grown-up settings</h2>
+      <label>Player name
+        <input id="kid-name" type="text" maxlength="20" autocomplete="off" placeholder="e.g. Sam">
+      </label>
+      <fieldset>
+        <legend>Show apps</legend>
+        <div id="app-toggles"></div>
+      </fieldset>
+      <details>
+        <summary>Danger zone</summary>
+        <button type="button" id="reset-btn" class="danger">Reset all progress</button>
+        <p id="reset-confirm" hidden>Tap again to confirm.</p>
+      </details>
+      <p class="meta">Version <span id="app-version"></span></p>
+      <button value="close" class="primary" autofocus>Done</button>
+    </form>
+  </dialog>
+
+  <script type="module" src="hub.js"></script>
+</body>
+</html>

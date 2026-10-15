@@ -2,7 +2,10 @@
 // Views: garden (home) → round (intro / quiz turns) → end. Grown-up panel: hold the ⚙ for 3 seconds.
 import { store } from '../../shared/store.js';
 import { DEFAULT_WORDS, Session, keyOf, stage, dayNumber } from './srs.js';
-import { unlock, say, stopSpeaking, sfx, recordedKeys, saveClip, deleteClip, startRecording, stopRecording } from './audio.js';
+import {
+  unlock, say, stopSpeaking, sfx, recordedKeys, saveClip, deleteClip, startRecording, stopRecording,
+  englishVoices, currentVoice, voiceQuality, setVoicePrefs, onVoicesChanged, speakWith,
+} from './audio.js';
 
 const save = store.forApp('sightwords');
 const root = document.getElementById('app');
@@ -336,6 +339,18 @@ async function renderPanel(msg = '') {
         <label>Questions per round ${sel('length', [6, 10, 15, 20], setting('length', 10))}</label>
         <span>Rounds played: ${save.get('sessions', 0)}</span>
       </div>
+      <section class="voice-test">
+        <h3>iPad voice</h3>
+        <p class="help">Used for any word you haven't recorded. For more natural voices, download one on this iPad:
+          Settings → Accessibility → Spoken Content → Voices → English, then pick a voice marked
+          <b>Enhanced</b> or <b>Premium</b> (e.g. Ava, Zoe, Evan). Reopen Word Garden and it will appear here.</p>
+        <div class="voice-row">
+          <select id="voice-pick">${voiceOptions()}</select>
+          <label>Speed <input id="voice-rate" type="range" min="0.6" max="1.1" step="0.05" value="${setting('rate', 0.85)}"></label>
+          <select id="voice-word">${list.map((w) => `<option>${esc(w)}</option>`).join('')}</select>
+          <button type="button" data-panel="try">▶ Try</button>
+        </div>
+      </section>
       <details class="danger-zone">
         <summary>Reset</summary>
         <p>Start every word over from scratch (recordings and the word list are kept).</p>
@@ -343,6 +358,24 @@ async function renderPanel(msg = '') {
       </details>
     </form>`;
 }
+
+function voiceOptions() {
+  const voices = englishVoices();
+  if (!voices.length) return '<option value="">(no voices found yet)</option>';
+  const cur = currentVoice()?.name;
+  return voices
+    .map((v) => {
+      const q = voiceQuality(v);
+      return `<option value="${esc(v.name)}" ${v.name === cur ? 'selected' : ''}>${esc(v.name.replace(/\s*\((enhanced|premium|english.*)\)$/i, ''))}${q ? ` ★ ${q}` : ''} · ${esc(v.lang)}</option>`;
+    })
+    .join('');
+}
+
+// iOS fills in its voice list a moment after load.
+onVoicesChanged(() => {
+  const pick = document.getElementById('voice-pick');
+  if (pick && panel.open) pick.innerHTML = voiceOptions();
+});
 
 async function openPanel() {
   stopSpeaking();
@@ -353,7 +386,19 @@ async function openPanel() {
 panel.addEventListener('change', (e) => {
   const s = e.target.dataset.setting;
   if (s) save.set(s, Number(e.target.value));
+  if (e.target.id === 'voice-pick' || e.target.id === 'voice-rate') {
+    save.set('voice', document.getElementById('voice-pick').value);
+    save.set('rate', Number(document.getElementById('voice-rate').value));
+    setVoicePrefs({ voice: setting('voice', ''), rate: setting('rate', 0.85) });
+    tryVoice();
+  }
 });
+
+// Say the chosen test word with the iPad voice (even if there's a recording for it).
+function tryVoice() {
+  unlock();
+  speakWith(document.getElementById('voice-word')?.value ?? 'like');
+}
 
 panel.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target.id === 'new-word') {
@@ -380,6 +425,7 @@ panel.addEventListener('click', async (e) => {
   const list = words();
   const i = Number(b.dataset.i);
   if (act === 'add') return addWord();
+  if (act === 'try') return tryVoice();
   if (act === 'up') {
     [list[i - 1], list[i]] = [list[i], list[i - 1]];
     save.set('words', list);
@@ -434,6 +480,7 @@ panel.addEventListener('close', async () => {
 });
 
 // ---------- Boot ----------
+setVoicePrefs({ voice: setting('voice', ''), rate: setting('rate', 0.85) });
 show('garden');
 if (new URLSearchParams(location.search).has('test')) {
   window.__words = {

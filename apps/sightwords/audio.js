@@ -142,32 +142,61 @@ function speak(text) {
   const synth = window.speechSynthesis;
   if (!synth) return Promise.resolve();
   return new Promise((resolve) => {
-    const u = new SpeechSynthesisUtterance(text);
+    // The full stop gives the word a natural falling "statement" tone instead of a flat read-out.
+    const u = new SpeechSynthesisUtterance(`${text}.`);
     const voice = bestVoice();
     if (voice) u.voice = voice;
     u.lang = voice?.lang ?? 'en-US';
-    u.rate = 0.8;
+    u.rate = prefs.rate;
     u.onend = u.onerror = resolve;
     synth.speak(u);
-    setTimeout(resolve, 2500);
+    setTimeout(resolve, 3000);
   });
 }
 
-// A clear US English voice; Siri-quality "Enhanced"/"Premium" ones if the iPad has them downloaded.
+// The grown-up panel can pick a voice by name and a speed; otherwise we choose the best-sounding one.
+const prefs = { voice: '', rate: 0.85 };
+export function setVoicePrefs({ voice = prefs.voice, rate = prefs.rate } = {}) {
+  prefs.voice = voice;
+  prefs.rate = rate;
+  chosen = null;
+}
+
+// English voices on this device, best first. "Enhanced"/"Premium" ones appear after a grown-up downloads
+// them in iPad Settings → Accessibility → Spoken Content → Voices → English.
+const norm = (lang) => (lang ?? '').replace('_', '-');
+const quality = (v) => (/premium/i.test(v.name) ? 2 : /enhanced/i.test(v.name) ? 1 : 0);
+export function englishVoices() {
+  const voices = window.speechSynthesis?.getVoices().filter((v) => norm(v.lang).startsWith('en')) ?? [];
+  const score = (v) =>
+    quality(v) * 4 +
+    (norm(v.lang) === 'en-US' ? 3 : 0) +
+    (/samantha|ava|allison|susan|nicky|zoe|evan|nathan|joelle|tom/i.test(v.name) ? 2 : 0) +
+    (v.localService ? 1 : 0) -
+    (/bells|boing|bubbles|cellos|wobble|jester|organ|trinoids|zarvox|whisper|bad news|good news|bahh|superstar|albert|fred|junior|ralph|grandma|grandpa|rocko/i.test(v.name) ? 20 : 0);
+  return voices.map((v) => ({ v, s: score(v) })).sort((a, b) => b.s - a.s).map(({ v }) => v);
+}
+
 let chosen = null;
 function bestVoice() {
   if (chosen) return chosen;
-  const voices = window.speechSynthesis.getVoices().filter((v) => v.lang?.replace('_', '-').startsWith('en'));
-  if (!voices.length) return null;
-  const score = (v) =>
-    (v.lang.replace('_', '-') === 'en-US' ? 4 : 0) +
-    (/premium|enhanced/i.test(v.name) ? 3 : 0) +
-    (/samantha|ava|allison|susan|nicky|karen/i.test(v.name) ? 2 : 0) +
-    (v.localService ? 1 : 0);
-  chosen = voices.sort((a, b) => score(b) - score(a))[0];
+  const voices = englishVoices();
+  chosen = voices.find((v) => v.name === prefs.voice) ?? voices[0] ?? null;
   return chosen;
 }
-window.speechSynthesis?.addEventListener?.('voiceschanged', () => (chosen = null));
+export const currentVoice = () => bestVoice();
+// The iPad voice only (skips any recording), for trying voices in the grown-up panel.
+export function speakWith(word) {
+  stopSpeaking();
+  return speak(word);
+}
+export const voiceQuality = (v) => ['', 'Enhanced', 'Premium'][quality(v)];
+const voiceListeners = new Set();
+export const onVoicesChanged = (fn) => voiceListeners.add(fn);
+window.speechSynthesis?.addEventListener?.('voiceschanged', () => {
+  chosen = null;
+  voiceListeners.forEach((fn) => fn());
+});
 
 // ---------- Sound effects ----------
 function tone(freq, dur, { vol = 0.15, type = 'sine', at = 0, slide = 0 } = {}) {

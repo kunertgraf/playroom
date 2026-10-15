@@ -236,6 +236,11 @@ main {
 .add input { flex: 1; font-size: 1.2rem; padding: 8px 12px; border: 2px solid #ccd; border-radius: 10px; font-family: var(--word-font); }
 .opts { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; color: #444; }
 .opts select { font-size: 1rem; margin-left: 6px; }
+.voice-test { margin-top: 18px; border-top: 1px solid #eee; padding-top: 8px; }
+.voice-test h3 { margin: 6px 0; font-size: 1.1rem; }
+.voice-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.voice-row select { font-size: 1rem; max-width: 100%; }
+#voice-pick { min-width: 260px; }
 .danger-zone { margin-top: 16px; color: #555; }
 .danger-zone .danger { background: var(--bad); color: #fff; }
 

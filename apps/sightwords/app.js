@@ -4,7 +4,7 @@ import { store } from '../../shared/store.js';
 import { DEFAULT_WORDS, Session, keyOf, stage, dayNumber } from './srs.js';
 import {
   unlock, say, stopSpeaking, sfx, recordedKeys, saveClip, deleteClip, startRecording, stopRecording,
-  englishVoices, currentVoice, voiceQuality, setVoicePrefs, onVoicesChanged, speakWith,
+  englishVoices, currentVoiceName, voiceQuality, setVoicePrefs, onVoicesChanged, speakWith, speechLog,
 } from './audio.js';
 
 const save = store.forApp('sightwords');
@@ -138,16 +138,13 @@ async function nextTurn() {
   turn = { ...item, missed: new Set(), graded: false, hint: false, locked: false, startedAt: 0 };
   show(item.kind === 'intro' ? 'intro' : 'quiz');
   const me = turn;
-  await wait(350);
-  if (turn !== me) return;
-  if (item.kind === 'intro') {
-    sfx.sparkle();
-    await wait(500);
+  // Speak straight away, before any await: on the first turn we're still inside the Play tap,
+  // which is what lets iPad Safari start speech at all.
+  if (item.kind === 'intro') sfx.sparkle();
+  await say(item.word);
+  if (item.kind === 'intro' && turn === me) {
+    await wait(600);
     if (turn === me) await say(item.word);
-    await wait(500);
-    if (turn === me) await say(item.word);
-  } else {
-    await say(item.word);
   }
   if (turn === me) me.startedAt = Date.now();
 }
@@ -351,6 +348,7 @@ async function renderPanel(msg = '') {
           <select id="voice-word">${list.map((w) => `<option>${esc(w)}</option>`).join('')}</select>
           <button type="button" data-panel="try">▶ Try</button>
         </div>
+        <p class="speech-log" id="speech-log">${speechLogText()}</p>
       </section>
       <details class="danger-zone">
         <summary>Reset</summary>
@@ -362,9 +360,9 @@ async function renderPanel(msg = '') {
 
 function voiceOptions() {
   const voices = englishVoices();
-  if (!voices.length) return '<option value="">(no voices found yet)</option>';
-  const cur = currentVoice()?.name;
-  return voices
+  const cur = currentVoiceName();
+  const auto = `<option value="">Automatic (iPad default)</option>`;
+  return auto + voices
     .map((v) => {
       const q = voiceQuality(v);
       return `<option value="${esc(v.name)}" ${v.name === cur ? 'selected' : ''}>${esc(v.name.replace(/\s*\((enhanced|premium|english.*)\)$/i, ''))}${q ? ` ★ ${q}` : ''} · ${esc(v.lang)}</option>`;
@@ -376,6 +374,7 @@ function voiceOptions() {
 onVoicesChanged(() => {
   const pick = document.getElementById('voice-pick');
   if (pick && panel.open) pick.innerHTML = voiceOptions();
+  refreshLog();
 });
 
 async function openPanel() {
@@ -398,7 +397,16 @@ panel.addEventListener('change', (e) => {
 // Say the chosen test word with the iPad voice (even if there's a recording for it).
 function tryVoice() {
   unlock();
-  speakWith(document.getElementById('voice-word')?.value ?? 'like');
+  speakWith(document.getElementById('voice-word')?.value ?? 'like').then(refreshLog);
+  setTimeout(refreshLog, 1200);
+}
+
+const speechLogText = () =>
+  `Speech check: ${window.speechSynthesis ? `${englishVoices().length} English voices` : 'not supported'}` +
+  (speechLog.length ? ` · ${speechLog.map(esc).join(' · ')}` : '');
+function refreshLog() {
+  const el = document.getElementById('speech-log');
+  if (el) el.innerHTML = speechLogText();
 }
 
 panel.addEventListener('keydown', (e) => {

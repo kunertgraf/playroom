@@ -11,11 +11,6 @@ export function unlock() {
   } catch {
     ctx = null;
   }
-  // iOS also needs speech started from a touch once; an empty utterance does it silently.
-  if (!unlock.spoke && window.speechSynthesis) {
-    speechSynthesis.speak(new SpeechSynthesisUtterance(''));
-    unlock.spoke = true;
-  }
 }
 
 // ---------- Recordings (IndexedDB: one audio Blob per word) ----------
@@ -41,13 +36,25 @@ async function tx(mode, fn) {
 }
 
 const buffers = new Map(); // key → decoded, trimmed AudioBuffer
-export const recordedKeys = () => tx('readonly', (s) => s.getAllKeys()).catch(() => []);
+// Kept in memory so say() knows synchronously whether to use speech (see say()).
+const recorded = new Set();
+export const recordedKeys = () =>
+  tx('readonly', (s) => s.getAllKeys())
+    .then((keys) => {
+      recorded.clear();
+      keys.forEach((k) => recorded.add(k));
+      return keys;
+    })
+    .catch(() => []);
+recordedKeys();
 export async function saveClip(word, blob) {
   buffers.delete(keyOf(word));
   await tx('readwrite', (s) => s.put(blob, keyOf(word)));
+  recorded.add(keyOf(word));
 }
 export async function deleteClip(word) {
   buffers.delete(keyOf(word));
+  recorded.delete(keyOf(word));
   await tx('readwrite', (s) => s.delete(keyOf(word)));
 }
 
@@ -111,20 +118,33 @@ export async function stopRecording() {
 }
 
 // ---------- Saying a word ----------
-let current = null; // whatever is speaking now, so a new word cuts off the old one
+// iPad Safari is fussy about speech:
+//  - it only starts speaking from inside a tap, so say() calls speak() synchronously (no awaits first);
+//    once one utterance has played, later ones (after timers) are allowed too;
+//  - speak() straight after cancel() is silently dropped, so only cancel when something is playing,
+//    and then wait a moment before speaking;
+//  - utterances can be garbage-collected mid-speech, so keep a reference until they end.
+let current = null; // recording playing now, so a new word cuts off the old one
+let cancelledAt = 0;
+const live = new Set();
 export function stopSpeaking() {
   try {
     current?.stop?.();
   } catch {}
   current = null;
-  window.speechSynthesis?.cancel();
+  const synth = window.speechSynthesis;
+  if (synth && (synth.speaking || synth.pending)) {
+    synth.cancel();
+    cancelledAt = Date.now();
+  }
 }
 
 // Resolves when the word has finished (or after a safety timeout).
-export async function say(word) {
+export function say(word) {
   stopSpeaking();
-  const buf = await clipBuffer(word);
-  if (buf && ctx) {
+  if (!recorded.has(keyOf(word)) || !ctx) return speak(word);
+  return clipBuffer(word).then((buf) => {
+    if (!buf) return speak(word);
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.connect(ctx.destination);
@@ -134,36 +154,63 @@ export async function say(word) {
       src.start();
       setTimeout(resolve, buf.duration * 1000 + 300);
     });
-  }
-  return speak(word);
-}
-
-function speak(text) {
-  const synth = window.speechSynthesis;
-  if (!synth) return Promise.resolve();
-  return new Promise((resolve) => {
-    // The full stop gives the word a natural falling "statement" tone instead of a flat read-out.
-    const u = new SpeechSynthesisUtterance(`${text}.`);
-    const voice = bestVoice();
-    if (voice) u.voice = voice;
-    u.lang = voice?.lang ?? 'en-US';
-    u.rate = prefs.rate;
-    u.onend = u.onerror = resolve;
-    synth.speak(u);
-    setTimeout(resolve, 3000);
   });
 }
 
-// The grown-up panel can pick a voice by name and a speed; otherwise we choose the best-sounding one.
+// What happened to the last few utterances, shown in the grown-up panel to debug a silent iPad.
+export const speechLog = [];
+const note = (msg) => {
+  speechLog.unshift(`${new Date().toLocaleTimeString()} ${msg}`);
+  speechLog.length = Math.min(speechLog.length, 6);
+};
+
+function speak(text) {
+  const synth = window.speechSynthesis;
+  if (!synth) {
+    note('no speechSynthesis in this browser');
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    // The full stop gives the word a natural falling "statement" tone instead of a flat read-out.
+    const u = new SpeechSynthesisUtterance(`${text}.`);
+    const voice = pickedVoice();
+    if (voice) u.voice = voice;
+    u.lang = voice?.lang ?? 'en-US';
+    u.rate = prefs.rate;
+    let started = false;
+    const done = () => {
+      live.delete(u);
+      resolve();
+    };
+    u.onstart = () => {
+      started = true;
+      note(`spoke "${text}" (${voice?.name ?? 'default voice'})`);
+    };
+    u.onend = done;
+    u.onerror = (e) => {
+      note(`error "${e.error}" saying "${text}" (${voice?.name ?? 'default voice'})`);
+      done();
+    };
+    live.add(u);
+    const go = () => synth.speak(u);
+    if (Date.now() - cancelledAt < 150) setTimeout(go, 150);
+    else go();
+    setTimeout(() => {
+      if (!started) note(`"${text}" never started (${voice?.name ?? 'default voice'})`);
+      done();
+    }, 3000);
+  });
+}
+
+// The grown-up panel can pick a voice by name and a speed. With no pick we leave the voice unset,
+// which is the most reliable on iPad (some listed voices aren't actually installed and stay silent).
 const prefs = { voice: '', rate: 0.85 };
 export function setVoicePrefs({ voice = prefs.voice, rate = prefs.rate } = {}) {
   prefs.voice = voice;
   prefs.rate = rate;
-  chosen = null;
 }
 
-// English voices on this device, best first. "Enhanced"/"Premium" ones appear after a grown-up downloads
-// them in iPad Settings → Accessibility → Spoken Content → Voices → English.
+// English voices on this device, best first. "Enhanced"/"Premium" ones appear after a grown-up downloads them.
 const norm = (lang) => (lang ?? '').replace('_', '-');
 const quality = (v) => (/premium/i.test(v.name) ? 2 : /enhanced/i.test(v.name) ? 1 : 0);
 export function englishVoices() {
@@ -177,14 +224,8 @@ export function englishVoices() {
   return voices.map((v) => ({ v, s: score(v) })).sort((a, b) => b.s - a.s).map(({ v }) => v);
 }
 
-let chosen = null;
-function bestVoice() {
-  if (chosen) return chosen;
-  const voices = englishVoices();
-  chosen = voices.find((v) => v.name === prefs.voice) ?? voices[0] ?? null;
-  return chosen;
-}
-export const currentVoice = () => bestVoice();
+const pickedVoice = () => (prefs.voice ? englishVoices().find((v) => v.name === prefs.voice) ?? null : null);
+export const currentVoiceName = () => prefs.voice;
 // The iPad voice only (skips any recording), for trying voices in the grown-up panel.
 export function speakWith(word) {
   stopSpeaking();
@@ -193,10 +234,7 @@ export function speakWith(word) {
 export const voiceQuality = (v) => ['', 'Enhanced', 'Premium'][quality(v)];
 const voiceListeners = new Set();
 export const onVoicesChanged = (fn) => voiceListeners.add(fn);
-window.speechSynthesis?.addEventListener?.('voiceschanged', () => {
-  chosen = null;
-  voiceListeners.forEach((fn) => fn());
-});
+window.speechSynthesis?.addEventListener?.('voiceschanged', () => voiceListeners.forEach((fn) => fn()));
 
 // ---------- Sound effects ----------
 function tone(freq, dur, { vol = 0.15, type = 'sine', at = 0, slide = 0 } = {}) {
